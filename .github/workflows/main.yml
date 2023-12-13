@@ -41,11 +41,17 @@ jobs:
         pip install -r requirements.txt --prefer-binary
         pip install -e .
         pip install ${{ matrix.nrn }}
+
     - name: Run NEURON's MPI tests
       run: |
         git clone --depth=1 https://github.com/neuronsimulator/nrn.git
-        mpiexec -n 2 python3 nrn/src/parallel/test0.py -mpi --expected-hosts 2
+        mpiexec -n 2 python3 nrn/src/parallel/test0.py --expected-hosts 2
         mpiexec -n 2 nrniv nrn/src/parallel/test0.hoc -mpi
+
+    - name: Run Simple Patch test
+      run: |
+        mpiexec -n 2 python3 tests/test_basics_min.py --init-mpi
+        NEURON_INIT_MPI=1 mpiexec -n 2 python3 tests/test_basics_min.py
 
     #- name: Run tests & coverage
     #  run: |
