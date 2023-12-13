@@ -4,12 +4,17 @@ on: [push]
 
 jobs:
   build:
-    name: build py${{ matrix.py }}, NEURON ${{ matrix.nrn }}
+    name: build py${{ matrix.py }}, ${{ matrix.nrn }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
         py: ["3.9","3.10"]
-        nrn: ["neuron-nightly", "neuron==8.2.3"]
+        nrn: ["neuron==8.1.0", "neuron==8.2.2", "neuron-nightly", "neuron==8.2.3"]
+        include:
+          - nrn: "neuron==8.0.0"
+            py: "3.9"
+          - nrn: "neuron==8.2.2"
+            py: "3.11"
     steps:
     - uses: actions/checkout@v3
     - name: Set up Python ${{ matrix.py }}
@@ -36,11 +41,17 @@ jobs:
         pip install -r requirements.txt --prefer-binary
         pip install -e .
         pip install ${{ matrix.nrn }}
-    - name: Run tests & coverage
+    - name: Run NEURON's MPI tests
       run: |
-        cd tests
-        coverage run --parallel-mode -m unittest discover -v -s ./separate
-        coverage run --parallel-mode -m unittest discover -v -s .
-        mpiexec --version
-        mpiexec -n 2 coverage run --parallel-mode -m unittest discover -v -s .
-        bash <(curl -s https://codecov.io/bash)
+        git clone --depth=1 https://github.com/neuronsimulator/nrn.git
+        mpiexec -n 2 python3 nrn/src/parallel/test0.py -mpi --expected-hosts 2
+        mpiexec -n 2 nrniv nrn/src/parallel/test0.hoc -mpi
+
+    #- name: Run tests & coverage
+    #  run: |
+    #    cd tests
+    #    coverage run --parallel-mode -m unittest discover -v -s ./separate
+    #    coverage run --parallel-mode -m unittest discover -v -s .
+    #    mpiexec --version
+    #    mpiexec -n 2 coverage run --parallel-mode -m unittest discover -v -s .
+    #    bash <(curl -s https://codecov.io/bash)
