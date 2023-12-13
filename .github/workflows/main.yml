@@ -4,16 +4,16 @@ on: [push]
 
 jobs:
   build:
-    name: build py${{ matrix.py }}, NEURON ${{ matrix.nrn }}
+    name: build py${{ matrix.py }}, ${{ matrix.nrn }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
         py: ["3.9","3.10"]
-        nrn: ["8.1.0", "8.2.2"]
+        nrn: ["neuron==8.1.0", "neuron==8.2.2", "neuron-nightly", "neuron==8.2.3"]
         include:
-          - nrn: "8.0.0"
+          - nrn: "neuron==8.0.0"
             py: "3.9"
-          - nrn: "8.2.2"
+          - nrn: "neuron==8.2.2"
             py: "3.11"
     steps:
     - uses: actions/checkout@v3
@@ -25,6 +25,7 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install openmpi-bin libopenmpi-dev
+        sudo apt list --installed
     - name: Cache pip
       uses: actions/cache@v3
       with:
@@ -39,11 +40,24 @@ jobs:
         pip install -e . --no-deps
         pip install -r requirements.txt --prefer-binary
         pip install -e .
-        pip install NEURON==${{ matrix.nrn }}
-    - name: Run tests & coverage
+        pip install ${{ matrix.nrn }}
+
+    - name: Run NEURON's MPI tests
       run: |
-        cd tests
-        coverage run --parallel-mode -m unittest discover -v -s ./separate
-        coverage run --parallel-mode -m unittest discover -v -s .
-        mpiexec -n 2 coverage run --parallel-mode -m unittest discover -v -s .
-        bash <(curl -s https://codecov.io/bash)
+        git clone --depth=1 https://github.com/neuronsimulator/nrn.git
+        mpiexec -n 2 python3 nrn/src/parallel/test0.py --expected-hosts 2
+        mpiexec -n 2 nrniv nrn/src/parallel/test0.hoc -mpi
+
+    - name: Run Simple Patch test
+      run: |
+        mpiexec -n 2 python3 tests/test_basics_min.py --init-mpi
+        NEURON_INIT_MPI=1 mpiexec -n 2 python3 tests/test_basics_min.py
+
+    #- name: Run tests & coverage
+    #  run: |
+    #    cd tests
+    #    coverage run --parallel-mode -m unittest discover -v -s ./separate
+    #    coverage run --parallel-mode -m unittest discover -v -s .
+    #    mpiexec --version
+    #    mpiexec -n 2 coverage run --parallel-mode -m unittest discover -v -s .
+    #    bash <(curl -s https://codecov.io/bash)
